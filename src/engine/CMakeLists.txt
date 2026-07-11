@@ -51,6 +51,7 @@ target_link_libraries(
 	$<$<BOOL:${ENABLE_IMAGE}>:${USE_SDL_VERSION}_image::${USE_SDL_VERSION}_image>
 	$<$<BOOL:${ENABLE_IMAGE}>:PNG::PNG>
 	Threads::Threads
+	mpg123
 	z
 	xmp
 	modplug

@@ -45,6 +45,7 @@
 #include "system.h"
 #include "ui_text.h"
 #include "ui_tool.h"
+#include "audio_manager.h"
 
 namespace
 {
@@ -102,6 +103,11 @@ namespace Video
 
     bool ShowVideo( const std::vector<VideoInfo> & infos, const std::vector<Subtitle> & subtitles /* = {} */, const bool fadeColorsOnEnd /* = false */ )
     {
+#ifdef __PS2__
+        AudioManager::ClearAllWAV();
+        AudioManager::ClearAllMID();
+#endif
+
         if ( infos.empty() ) {
             // What it is expected from an empty video?
             return false;

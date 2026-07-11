@@ -1,6 +1,6 @@
 /***************************************************************************
  *   fheroes2: https://github.com/ihhub/fheroes2                           *
- *   Copyright (C) 2020 - 2025                                             *
+ *   Copyright (C) 2020 - 2026                                             *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -88,6 +88,13 @@ public:
     {
         return _currentFrameId;
     }
+
+#ifdef __PS2__
+    void clearAudioCache()
+    {
+        std::vector<std::vector<uint8_t>>().swap(_audioChannel);
+    }
+#endif
 
 private:
     std::vector<std::vector<uint8_t>> _audioChannel;

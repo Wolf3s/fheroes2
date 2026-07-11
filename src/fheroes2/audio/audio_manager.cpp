@@ -958,4 +958,18 @@ namespace AudioManager
         lastRequestedMusicTrackId = MUS::UNKNOWN;
         currentMusicTrackId = MUS::UNKNOWN;
     }
+#ifdef __PS2__
+    void ClearAllWAV()
+    {
+        currentAudioLoopEffects.clear();
+        for (auto &entry : wavDataCache)
+            std::vector<uint8_t>().swap(entry.second);
+    }
+
+    void ClearAllMID()
+    {
+        for (auto &entry : MIDDataCache)
+            std::vector<uint8_t>().swap(entry.second);
+    }
+#endif
 }

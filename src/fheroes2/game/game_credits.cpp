@@ -45,6 +45,7 @@
 #include "translations.h"
 #include "ui_text.h"
 #include "ui_tool.h"
+#include "agg_image.h"
 
 namespace
 {
@@ -813,4 +814,15 @@ void Game::ShowCredits( const bool keepMainMenuBorders )
     else {
         fheroes2::fadeOutDisplay();
     }
+#ifdef __PS2__
+    pages.clear();
+    pages.shrink_to_fit();
+
+    header.reset();
+
+    display.reset();
+
+    AudioManager::ClearAllWAV();
+    AudioManager::ClearAllMID();
+#endif
 }

@@ -223,6 +223,12 @@ fheroes2::GameMode Game::MainMenu( const bool isFirstGameRun )
 
     fheroes2::Display & display = fheroes2::Display::instance();
 
+#ifdef __PS2__
+    //fheroes2::AGG::ICNRegistryFreeObjects(ICN::HEROES);
+    AudioManager::ClearAllWAV();
+    AudioManager::ClearAllMID();
+#endif
+
     fheroes2::drawMainMenuScreen();
 
     if ( isFirstGameRun ) {

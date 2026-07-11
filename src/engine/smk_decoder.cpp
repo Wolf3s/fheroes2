@@ -65,7 +65,11 @@ SMKVideoSequence::SMKVideoSequence( const std::string & filePath )
 {
     verifyVideoFile( filePath );
 
+#ifdef __PS2__
+    _videoFile.reset( smk_open_file( filePath.c_str(), SMK_MODE_DISK ) );
+#else
     _videoFile.reset( smk_open_file( filePath.c_str(), SMK_MODE_MEMORY ) );
+#endif
     if ( !_videoFile ) {
         return;
     }
@@ -221,6 +225,11 @@ SMKVideoSequence::SMKVideoSequence( const std::string & filePath )
     if ( const signed char returnValue = smk_first( _videoFile.get() ); returnValue < 0 ) {
         ERROR_LOG( "smk_first() failed with error code: " << static_cast<int>( returnValue ) )
     }
+
+#ifdef __PS2__ // Hack free audio for now.
+    _audioChannel.clear();
+    _audioChannel.shrink_to_fit();
+#endif
 }
 
 void SMKVideoSequence::resetFrame()
