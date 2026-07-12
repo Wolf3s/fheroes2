@@ -889,7 +889,8 @@ std::string Maps::Tile::String() const
     const MP2::MapObjectType objectType = getMainObjectType();
 
     os << "******* Tile info *******" << std::endl
-       << "index           : " << _index << ", " << "point: (" << GetCenter().x << ", " << GetCenter().y << ")" << std::endl
+       << "index           : " << _index << ", "
+       << "point: (" << GetCenter().x << ", " << GetCenter().y << ")" << std::endl
        << "MP2 object type : " << static_cast<int>( objectType ) << " (" << MP2::StringObject( objectType ) << ")" << std::endl
        << "region Id       : " << _region << std::endl
        << "ground type     : " << Ground::String( GetGround() ) << " (isRoad: " << _isTileMarkedAsRoad << ")" << std::endl
@@ -1956,7 +1957,7 @@ IStreamBase & Maps::operator>>( IStreamBase & stream, Tile & tile )
     if ( Game::GetVersionOfCurrentSaveFile() < FORMAT_VERSION_1108_RELEASE && tile._mainObjectType == MP2::OBJ_MINE
          && tile.getMainObjectPart().icnType != MP2::OBJ_ICN_TYPE_EXTRAOVR ) {
         // Some maps have "hacked" mines with no resources. We need to try to fix these tiles.
-        updateObjectInfoTile( tile, true );
+        setInitialObjectInfo( tile );
     }
 
     return stream >> tile._boatOwnerColor;

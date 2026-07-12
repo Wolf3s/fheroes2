@@ -1,6 +1,6 @@
 /***************************************************************************
  *   fheroes2: https://github.com/ihhub/fheroes2                           *
- *   Copyright (C) 2020 - 2025                                             *
+ *   Copyright (C) 2020 - 2026                                             *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,10 +18,11 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include "screen.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cstdint>
 #include <cstring>
 #include <iterator>
 #include <optional>
@@ -69,7 +70,6 @@
 #include "image_palette.h"
 #include "logging.h"
 #include "math_tools.h"
-#include "screen.h"
 #include "system.h"
 
 namespace
@@ -388,7 +388,7 @@ namespace
             }
         }
 
-        SDL_Surface * generateIconSurface( const fheroes2::Image & icon )
+        static SDL_Surface * generateIconSurface( const fheroes2::Image & icon )
         {
             if ( icon.empty() || icon.singleLayer() ) {
                 // What are you trying to do? Icon should have not empty both image and transform layers.
@@ -433,23 +433,18 @@ namespace
             return surface;
         }
     };
-#endif
 
     class RenderCursor final : public fheroes2::Cursor
     {
     public:
-        RenderCursor( const RenderCursor & ) = delete;
-
         ~RenderCursor() override
         {
             clear();
         }
 
-        RenderCursor & operator=( const RenderCursor & ) = delete;
-
         void show( const bool enable ) override
         {
-            fheroes2::Cursor::show( enable );
+            Cursor::show( enable );
 
             if ( !_emulation ) {
                 const int returnCode = SDL_ShowCursor( _show ? SDL_ENABLE : SDL_DISABLE );
@@ -462,10 +457,10 @@ namespace
         bool isVisible() const override
         {
             if ( _emulation ) {
-                return fheroes2::Cursor::isVisible();
+                return Cursor::isVisible();
             }
 
-            return fheroes2::Cursor::isVisible() && ( SDL_ShowCursor( SDL_QUERY ) == SDL_ENABLE );
+            return Cursor::isVisible() && ( SDL_ShowCursor( SDL_QUERY ) == SDL_ENABLE );
         }
 
         void update( const fheroes2::Image & image, int32_t offsetX, int32_t offsetY ) override
@@ -477,7 +472,7 @@ namespace
             }
 
             if ( _emulation ) {
-                fheroes2::Cursor::update( image, offsetX, offsetY );
+                Cursor::update( image, offsetX, offsetY );
                 return;
             }
 
@@ -596,8 +591,21 @@ namespace
             }
         }
     };
+#endif
 
 #if defined( TARGET_PS_VITA )
+    class RenderCursor final : public fheroes2::Cursor
+    {
+    public:
+        static RenderCursor * create()
+        {
+            auto * cursor = new RenderCursor;
+            cursor->enableSoftwareEmulation( true );
+
+            return cursor;
+        }
+    };
+
     class RenderEngine final : public fheroes2::BaseRenderEngine
     {
     public:
@@ -648,8 +656,8 @@ namespace
         }
 
     private:
+        // SDL capture touchscreen events only in SDL_Window rectangle. We create SDL_Window on PS Vita only for this purpose.
         SDL_Window * _window{ nullptr };
-        SDL_Surface * _surface{ nullptr };
         vita2d_texture * _texBuffer{ nullptr };
         uint8_t * _palettedTexturePointer{ nullptr };
         fheroes2::Rect _destRect;
@@ -668,11 +676,6 @@ namespace
             if ( _window != nullptr ) {
                 SDL_DestroyWindow( _window );
                 _window = nullptr;
-            }
-
-            if ( _surface != nullptr ) {
-                SDL_FreeSurface( _surface );
-                _surface = nullptr;
             }
 
             vita2d_fini();
@@ -704,15 +707,6 @@ namespace
                 return false;
             }
 
-            _surface = SDL_CreateRGBSurface( 0, 1, 1, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 );
-
-            if ( _surface == nullptr || _surface->w <= 0 || _surface->h <= 0 ) {
-                ERROR_LOG( "Failed to create a surface of " << resolutionInfo.gameWidth << " x " << resolutionInfo.gameHeight << " size. The error: " << SDL_GetError() )
-
-                clear();
-                return false;
-            }
-
             vita2d_texture_set_alloc_memblock_type( SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW );
             _texBuffer = vita2d_create_empty_texture_format( resolutionInfo.gameWidth, resolutionInfo.gameHeight, SCE_GXM_TEXTURE_FORMAT_P8_ABGR );
             _palettedTexturePointer = static_cast<uint8_t *>( vita2d_texture_get_datap( _texBuffer ) );
@@ -734,7 +728,7 @@ namespace
             const int32_t width = display.width();
             const int32_t height = display.height();
 
-            SDL_memcpy( _palettedTexturePointer, display.image(), width * height * sizeof( uint8_t ) );
+            memcpy( _palettedTexturePointer, display.image(), width * height * sizeof( uint8_t ) );
 
             vita2d_start_drawing();
             vita2d_draw_rectangle( 0, 0, VITA_FULLSCREEN_WIDTH, VITA_FULLSCREEN_HEIGHT, 0xff000000 );
@@ -746,17 +740,24 @@ namespace
 
         void updatePalette( const std::vector<uint8_t> & colorIds ) override
         {
-            if ( _surface == nullptr || colorIds.size() != 256 || _texBuffer == nullptr )
+            if ( colorIds.size() != 256U || _texBuffer == nullptr )
                 return;
 
-            uint32_t palette32Bit[256u];
+            auto * palette32Bit = reinterpret_cast<uint32_t *>( vita2d_texture_get_palette( _texBuffer ) );
 
-            for ( size_t i = 0; i < 256u; ++i ) {
+            for ( size_t i = 0; i < 256U; ++i ) {
                 const uint8_t * value = currentPalette + colorIds[i] * 3;
-                palette32Bit[i] = SDL_MapRGBA( _surface->format, *value, *( value + 1 ), *( value + 2 ), 255 );
+                // Red.
+                palette32Bit[i] = *value;
+                ++value;
+                // Green.
+                palette32Bit[i] += static_cast<uint32_t>( *value ) << 8U;
+                ++value;
+                // Blue.
+                palette32Bit[i] += static_cast<uint32_t>( *value ) << 16U;
+                // Alpha channel. Always non-transparent.
+                palette32Bit[i] += ( 255U << 24U );
             }
-
-            memcpy( vita2d_texture_get_palette( _texBuffer ), palette32Bit, sizeof( uint32_t ) * 256 );
         }
 
         bool isMouseCursorActive() const override
@@ -806,15 +807,17 @@ namespace
         }
     };
 #elif defined( __PS2__ )
-    static int _vsync_sema_id = 0;
-
-    int vsync_handler( int reason )
+    class RenderCursor final : public fheroes2::Cursor
     {
-        iSignalSema( _vsync_sema_id );
+    public:
+        static RenderCursor * create()
+        {
+            auto * cursor = new RenderCursor;
+            cursor->enableSoftwareEmulation( false );
 
-        ExitHandler();
-        return 0;
-    }
+            return cursor;
+        }
+    };
 
     class RenderEngine final : public fheroes2::BaseRenderEngine
     {
@@ -840,70 +843,48 @@ namespace
 
         fheroes2::Rect getActiveWindowROI() const override
         {
-            return _destRect;
+            return { 0, 0, fheroes2::Display::DEFAULT_WIDTH, fheroes2::Display::DEFAULT_HEIGHT };
         }
 
         fheroes2::Size getCurrentScreenResolution() const override
         {
-            return { PS2_FULLSCREEN_WIDTH, PS2_FULLSCREEN_HEIGHT };
+            return { fheroes2::Display::DEFAULT_WIDTH, fheroes2::Display::DEFAULT_HEIGHT };
         }
 
         std::vector<fheroes2::ResolutionInfo> getAvailableResolutions() const override
         {
-            static const std::vector<fheroes2::ResolutionInfo> filteredResolutions = []() {
-                std::set<fheroes2::ResolutionInfo> resolutionSet;
-                resolutionSet.emplace( fheroes2::Display::DEFAULT_WIDTH, fheroes2::Display::DEFAULT_HEIGHT );
-                return std::vector<fheroes2::ResolutionInfo>{ resolutionSet.rbegin(), resolutionSet.rend() };
-            }();
-
-            return filteredResolutions;
+            return { { fheroes2::Display::DEFAULT_WIDTH, fheroes2::Display::DEFAULT_HEIGHT } };
         }
 
     private:
-        SDL_Window * _window{ nullptr };
         GSGLOBAL * _gsglobal{ nullptr };
         GSTEXTURE * _texture{ nullptr };
-        fheroes2::Rect _destRect;
         uint32_t _palette[256];
 
         RenderEngine() = default;
 
-        enum : int32_t
-        {
-            PS2_FULLSCREEN_WIDTH = 640,
-            PS2_FULLSCREEN_HEIGHT = 480,
-        };
-
         void clear() override
         {
-            if ( _texture != nullptr ) {
-                gsKit_TexManager_free( _gsglobal, _texture );
-
+            if ( _gsglobal != nullptr ) {
                 gsKit_vram_clear( _gsglobal );
                 gsKit_deinit_global( _gsglobal );
-                SDL_free( _texture->Mem );
-                SDL_free( _texture );
+                _gsglobal = nullptr;
+            }
 
+            if ( _texture != nullptr ) {
+                if ( _texture->Mem != nullptr ) {
+                    free( _texture->Mem );
+                    _texture->Mem = nullptr;
+                }
+
+                free( _texture );
                 _texture = nullptr;
             }
         }
 
         bool allocate( fheroes2::ResolutionInfo & resolutionInfo, bool isFullScreen ) override
         {
-            ee_sema_t sema;
             clear();
-
-            const std::vector<fheroes2::ResolutionInfo> resolutions = getAvailableResolutions();
-            assert( !resolutions.empty() );
-            if ( !resolutions.empty() ) {
-                resolutionInfo = GetNearestResolution( resolutionInfo, resolutions );
-            }
-
-            /* Specific gsKit init */
-            sema.init_count = 0;
-            sema.max_count = 1;
-            sema.option = 0;
-            _vsync_sema_id = CreateSema( &sema );
 
             _texture = reinterpret_cast<GSTEXTURE *>( calloc( 1, sizeof( GSTEXTURE ) ) );
 
@@ -921,39 +902,26 @@ namespace
 
             gsKit_init_screen( _gsglobal );
 
-            gsKit_mode_switch( _gsglobal, GS_ONESHOT ); // queue + flip every frame
-
-            gsKit_TexManager_init( _gsglobal );
-
-            gsKit_add_vsync_handler( vsync_handler );
+            // queue + flip every frame
+            gsKit_mode_switch( _gsglobal, GS_ONESHOT );
 
             _texture->Width = static_cast<int>( resolutionInfo.gameWidth );
             _texture->Height = static_cast<int>( resolutionInfo.gameHeight );
-            _texture->PSM = GS_PSM_CT32;
-            _texture->ClutPSM = 0;
+            _texture->PSM = GS_PSM_T8;
+            _texture->Clut = reinterpret_cast<u32 *>( _palette );
+            _texture->ClutPSM = GS_PSM_CT32;
+
             _texture->Mem = reinterpret_cast<u32 *>( memalign( 128, gsKit_texture_size_ee( _texture->Width, _texture->Height, _texture->PSM ) ) );
             _texture->Filter = isNearestScaling() ? GS_FILTER_NEAREST : GS_FILTER_LINEAR;
             _texture->Delayed = 0;
-            _texture->Vram = 0;
-            _texture->VramClut = 0;
+            _texture->Vram = gsKit_vram_alloc( _gsglobal, gsKit_texture_size( _texture->Width, _texture->Height, _texture->PSM ), GSKIT_ALLOC_USERBUFFER );
+            _texture->VramClut = gsKit_vram_alloc( _gsglobal, gsKit_texture_size( 16, 16, GS_PSM_CT32 ), GSKIT_ALLOC_USERBUFFER );
             return true;
         }
 
         void render( const fheroes2::Display & display, const fheroes2::Rect & roi ) override
         {
-            const uint8_t * src = display.image();
-
-            uint32_t * dst = (uint32_t *)_texture->Mem;
-
-            const int pixels = display.width() * display.height();
-
-            for ( int i = 0; i < pixels; ++i ) {
-                dst[i] = _palette[src[i]];
-            }
-
-            gsKit_clear( _gsglobal, GS_SETREG_RGBAQ( 0x00, 0x00, 0x00, 0x00, 0x00 ) ); // Clean the previous texture
-            gsKit_TexManager_invalidate( _gsglobal, _texture );
-            gsKit_TexManager_bind( _gsglobal, _texture );
+            memcpy( _texture->Mem, display.image(), gsKit_texture_size_ee( _texture->Width, _texture->Height, _texture->PSM ) );
 
             gsKit_texture_upload( _gsglobal, _texture );
             gsKit_prim_sprite_texture( _gsglobal, _texture, 0, 0, 0, 0, _gsglobal->Width, _gsglobal->Height, _texture->Width, _texture->Height, 0,
@@ -964,7 +932,6 @@ namespace
 
             gsKit_vsync_wait();
             gsKit_sync_flip( _gsglobal );
-            gsKit_TexManager_nextFrame( _gsglobal );
         }
 
         void updatePalette( const std::vector<uint8_t> & colorIds ) override
@@ -974,24 +941,29 @@ namespace
 
             for ( size_t i = 0; i < 256; ++i ) {
                 const uint8_t * value = currentPalette + colorIds[i] * 3;
+                // Red.
+                _palette[i] = *value;
+                ++value;
+                // Green.
+                _palette[i] += static_cast<uint32_t>( *value ) << 8U;
+                ++value;
+                // Blue.
+                _palette[i] += static_cast<uint32_t>( *value ) << 16U;
+                // Alpha channel. Always non-transparent.
+                _palette[i] += ( 255U << 24U );
+            }
 
-                uint32_t c = ( 0x80 << 24 ) | ( value[0] << 16 ) | ( value[1] << 8 ) | value[2];
-
-                _palette[i] = ( c & 0xFF00FF00 ) | ( ( c & 0x00FF0000 ) >> 16 ) | ( ( c & 0x000000FF ) << 16 );
+            // Swap the texture to have the CSM1 mode requirements
+            for ( int i = 0; i < 256; i++ ) {
+                if ( ( i & 0x18 ) == 8 ) {
+                    std::swap( _palette[i], _palette[i + 8] );
+                }
             }
         }
 
         bool isMouseCursorActive() const override
         {
             return false;
-        }
-
-        void _calculateScreenScaling( const int32_t width_, const int32_t height_, const bool isFullScreen )
-        {
-            _destRect.x = 0;
-            _destRect.y = 0;
-            _destRect.width = width_;
-            _destRect.height = height_;
         }
     };
 #else
@@ -1419,7 +1391,7 @@ namespace
                 const uint32_t requiredFlags = SDL_RENDERER_ACCELERATED;
 
                 for ( int driverId = 0; driverId < driverCount; ++driverId ) {
-                    int returnCode = SDL_GetRenderDriverInfo( driverId, &rendererInfo );
+                    const int returnCode = SDL_GetRenderDriverInfo( driverId, &rendererInfo );
                     if ( returnCode < 0 ) {
                         ERROR_LOG( "Failed to get renderer driver info. The error value: " << returnCode << ", description: " << SDL_GetError() )
                         continue;
@@ -1452,7 +1424,6 @@ namespace
             }
 
             _surface = SDL_CreateRGBSurface( 0, resolutionInfo.gameWidth, resolutionInfo.gameHeight, isPaletteModeSupported ? 8 : 32, 0, 0, 0, 0 );
-
             if ( _surface == nullptr ) {
                 ERROR_LOG( "Failed to create a surface of " << resolutionInfo.gameWidth << " x " << resolutionInfo.gameHeight << " size. The error: " << SDL_GetError() )
                 clear();
@@ -1524,7 +1495,6 @@ namespace
                 return;
 
             generatePalette( colorIds, _surface );
-
             if ( _surface->format->BitsPerPixel == 8 ) {
                 const int returnCode = SDL_SetPaletteColors( _surface->format->palette, _palette8Bit.data(), 0, 256 );
                 if ( returnCode < 0 ) {
@@ -1808,7 +1778,7 @@ namespace fheroes2
         _engine->updatePalette( StandardPaletteIndexes() );
     }
 
-    bool Cursor::isFocusActive() const
+    bool Cursor::isFocusActive()
     {
         return engine().isMouseCursorActive();
     }
