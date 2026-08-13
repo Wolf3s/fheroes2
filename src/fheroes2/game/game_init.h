@@ -1,6 +1,6 @@
 /***************************************************************************
  *   fheroes2: https://github.com/ihhub/fheroes2                           *
- *   Copyright (C) 2023 - 2026                                             *
+ *   Copyright (C) 2026                                                    *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -20,20 +20,39 @@
 
 #pragma once
 
-#include <stdexcept>
+#include <memory>
 
-namespace fheroes2
+#include "component_base.h"
+
+namespace Game
 {
-    class InvalidDataResources : public std::logic_error
-    {
-        using std::logic_error::logic_error;
-    };
+    void initLogging();
 
-    class CorruptedExecutable : public std::logic_error
-    {
-        using std::logic_error::logic_error;
-    };
+    void initDataDir();
 
-    struct UserRequestedApplicationClosure final
-    {};
+    void initConfigDir( const char * appPath );
+
+    void initPalette();
+
+    // Update the fonts according to the game language set in the configuration.
+    // NOTICE: it must be done before initializing the engine to properly load all
+    // language-specific font characters for the selected language because during
+    // initialization the English language is forced to properly read the configuration files.
+    void initTranslations();
+
+    void initEventHandler();
+
+    void initAnimation();
+
+    void initHotKeys();
+
+    std::unique_ptr<ComponentBase> createHardwareComponent();
+
+    std::unique_ptr<ComponentBase> createCoreComponent();
+
+    std::unique_ptr<ComponentBase> createDisplayComponent();
+
+    std::unique_ptr<ComponentBase> createDataComponent();
+
+    std::unique_ptr<ComponentBase> createAudioComponent( const ComponentBase * dataComponent );
 }
