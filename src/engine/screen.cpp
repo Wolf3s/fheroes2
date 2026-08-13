@@ -823,7 +823,7 @@ namespace
         static RenderCursor * create()
         {
             auto * cursor = new RenderCursor;
-            cursor->enableSoftwareEmulation( false );
+            cursor->enableSoftwareEmulation( true );
 
             return cursor;
         }
@@ -949,18 +949,8 @@ namespace
             if ( colorIds.size() != 256 || _texture == nullptr )
                 return;
 
-            for ( size_t i = 0; i < 256; ++i ) {
-                const uint8_t * value = currentPalette + colorIds[i] * 3;
-                // Red.
-                _palette[i] = *value;
-                ++value;
-                // Green.
-                _palette[i] += static_cast<uint32_t>( *value ) << 8U;
-                ++value;
-                // Blue.
-                _palette[i] += static_cast<uint32_t>( *value ) << 16U;
-                // Alpha channel. Always non-transparent.
-                _palette[i] += ( 255U << 24U );
+            for ( size_t i = 0; i < fheroes2::paletteSize; ++i ) {
+                _palette[i] = currentRGBPalette[colorIds[i]].getRGBA();
             }
 
             // Swap the texture to have the CSM1 mode requirements
