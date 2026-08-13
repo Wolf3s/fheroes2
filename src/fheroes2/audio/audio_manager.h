@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "component_base.h"
+
 struct ListFiles;
 
 namespace M82
@@ -39,7 +41,7 @@ namespace Music
 
 namespace AudioManager
 {
-    class AudioInitializer
+    class AudioInitializer final : public ComponentBase
     {
     public:
         AudioInitializer() = delete;
@@ -57,7 +59,7 @@ namespace AudioManager
     // that was last requested to play at the time of initialization of an instance of
     // this class, which is not necessarily the same music track that was actually
     // playing at the time.
-    class MusicRestorer
+    class MusicRestorer final
     {
     public:
         MusicRestorer();
