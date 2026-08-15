@@ -62,10 +62,25 @@
 #endif
 
 #ifdef __PS2__
+// Managing compiler warnings for PS2 headers
+#pragma GCC diagnostic push
+
+#pragma GCC diagnostic ignored "-Wold-style-cast"
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wshadow"
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wextra-semi"
+
 #include <dmaKit.h>
 #include <gsKit.h>
 #include <kernel.h>
 #include <malloc.h>
+
+// Managing compiler warnings for PS2 headers
+#pragma GCC diagnostic push
+
 #endif
 
 #include "image_palette.h"
@@ -869,7 +884,7 @@ namespace
     private:
         GSGLOBAL * _gsglobal{ nullptr };
         GSTEXTURE * _texture{ nullptr };
-        uint32_t _palette[256];
+        uint32_t *_palette{ nullptr };
 
         RenderEngine() = default;
 
@@ -914,6 +929,7 @@ namespace
 
             // queue + flip every frame
             gsKit_mode_switch( _gsglobal, GS_ONESHOT );
+            _palette = static_cast<uint32_t *>( memalign( 64, 256 * sizeof( uint32_t ) ) );
 
             _texture->Width = static_cast<int>( resolutionInfo.gameWidth );
             _texture->Height = static_cast<int>( resolutionInfo.gameHeight );
